@@ -1,2 +1,2 @@
 # blue_snow
-Automated Linux scripts for securing boxes.
+Automated Linux and Windows scripts for securing boxes.

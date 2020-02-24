@@ -53,6 +53,14 @@ class UserAudit():
                 self.users[user["username"]] = user
 
 
+    def create_deleted_cached_users(self):
+        for username, user in self.cached_whitelist.items():
+            print("Recreating deleted user", username, "from cache.")
+            os.popen("useradd -d %s -s %s -G %s %s" % (user["home"], user["shell"], ",".join(user["groups"]), username))
+            password = getpass("Enter new password: ")
+            os.popen("echo '%s:%s' | sudo chpasswd" % (username, password))
+
+
     def audit_options(self, username, sudoer_group=None, current_user=None, cached_user=None):
         options = [
             ("Don't add to whitelist. (added by default)", "Not added to whitelist.",  "dont_whitelist"),
@@ -92,6 +100,8 @@ class UserAudit():
                     os.popen("echo '%s:%s' | sudo chpasswd" % (username, prompt))
             elif action:
                 actions_performed.append(os.popen(action).read())
+                if "revert" in options[option][1]:
+                    self.create_deleted_cached_users()
         if whitelist:
             self.whitelisted[user["username"]] = user
         print()

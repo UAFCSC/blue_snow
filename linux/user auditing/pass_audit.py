@@ -86,7 +86,8 @@ class UserAudit():
     def audit_user(self, username, user, user_type="user", current_user=None, cached_user=None):
         print(user)
         actions_performed = []
-        options = self.audit_options(username, "sudo" if "sudo" in user["groups"] else "wheel", current_user, cached_user)
+        admin_group = "sudo" if "sudo" in user["groups"] else "wheel" if user_type == "sudoer" else None
+        options = self.audit_options(username, admin_group, current_user, cached_user)
         selected_options = input(username + " is a non-cached " + user_type + ". What do you want to do? (type numbers): ")
         selected_options = [int(option) for option in selected_options if option]
         whitelist = True

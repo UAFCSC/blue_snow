@@ -101,8 +101,7 @@ class UserAudit():
                     os.popen("echo '%s:%s' | sudo chpasswd" % (username, prompt))
             elif action:
                 actions_performed.append(os.popen(action).read())
-                if "revert" in options[option][1]:
-                    self.create_deleted_cached_users()
+
         if whitelist:
             self.whitelisted[user["username"]] = user
         print()
@@ -143,6 +142,12 @@ class UserAudit():
             actions_log[username] = self.audit_user(username, sudoer, "sudoer")
         for username, user in self.users.items():
             actions_log[username] = self.audit_user(username, user)
+
+        if len(self.cached_whitelist):
+            print("The following cached users no longer exist:", list(self.cached_whitelist.keys()))
+            revert = input("Restore deleted users? (y/n): ") != "n"
+            if revert:
+                self.create_deleted_cached_users()
 
         print("Creating new whitelist...")
         self.write_whitelist()

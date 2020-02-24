@@ -43,7 +43,7 @@ class UserAudit():
         current_users = os.popen("cat /etc/passwd").read()
         for user in [fields.split(":") for fields in current_users.split("\n") if len(fields.split(":")) == 7]:
             user = {self.user_headers[i]: user[i] for i in range(len(self.user_headers))}
-            user["groups"] = sorted([group for group in os.popen("groups %s" % user["username"]).read().strip().split(" ") if group and group != ":"])
+            user["groups"] = sorted(list(set([group.strip() for group in os.popen("groups %s" % user["username"]).read().split(" ") if group and group != ":"])))
             
             if user["username"] in self.cached_whitelist:
                 self.check_cached_whitelist(user)        

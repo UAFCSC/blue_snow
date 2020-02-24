@@ -37,7 +37,7 @@ class UserAudit():
                 self.whitelisted[user["username"]] = user
 
 
-    def get_current_users(self):
+    def get_current_users(self, skip_cache=False):
         self.sudoers = {}
         self.users = {}
         current_users = os.popen("cat /etc/passwd").read()
@@ -45,7 +45,7 @@ class UserAudit():
             user = {self.user_headers[i]: user[i] for i in range(len(self.user_headers))}
             user["groups"] = sorted(list(set([group.strip() for group in os.popen("groups %s" % user["username"]).read().split(" ") if group and group != ":"])))
             
-            if user["username"] in self.cached_whitelist:
+            if not skip_cache and user["username"] in self.cached_whitelist:
                 self.check_cached_whitelist(user)        
             elif "sudo" in user["groups"] or "wheel" in user["groups"]:
                 self.sudoers[user["username"]] = user
@@ -112,7 +112,7 @@ class UserAudit():
         with open(self.logfile, "w") as log_writer:
             log_writer.write("# User audit file written on " + datetime.isoformat(datetime.now()) + "\n")
 
-            self.get_current_users()
+            self.get_current_users(skip_cache=True)
             log_writer.write("\nsudoers:\n")
             for sudoer in self.sudoers:
                 log_writer.write("\t%s\n" % sudoer)

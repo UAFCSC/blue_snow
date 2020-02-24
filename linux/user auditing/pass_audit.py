@@ -32,7 +32,7 @@ class UserAudit():
             print(user["username"], "has changed since last audit!\n\tPrevious:", self.cached_whitelist[user["username"]], "\n\tNew:", user)
             accept_new = input("Accept changes? (y/n): ")
             if accept_new != "y":
-                self.audit_user(user["username"], user)
+                self.audit_user(user["username"], user, current_user=user, cached_user=self.cached_whitelist[user["username"]])
             else:
                 self.whitelisted[user["username"]] = user
 
@@ -43,7 +43,7 @@ class UserAudit():
         current_users = os.popen("cat /etc/passwd").read()
         for user in [fields.split(":") for fields in current_users.split("\n") if len(fields.split(":")) == 7]:
             user = {self.user_headers[i]: user[i] for i in range(len(self.user_headers))}
-            user["groups"] = sorted(os.popen("groups %s" % user["username"]).read().strip().split(" "))
+            user["groups"] = sorted([group for group in os.popen("groups %s" % user["username"]).read().strip().split(" ") if group and group != ":"])
             
             if user["username"] in self.cached_whitelist:
                 self.check_cached_whitelist(user)        
@@ -53,35 +53,48 @@ class UserAudit():
                 self.users[user["username"]] = user
 
 
-    def audit_options(self, username, sudoer_group=None):
+    def audit_options(self, username, sudoer_group=None, current_user=None, cached_user=None):
         options = [
-            ("Add to whitelist. (default)", "Added to whitelist.",  "whitelisted"),
+            ("Don't add to whitelist. (added by default)", "Not added to whitelist.",  "dont_whitelist"),
             ("Change password.", "New Password: ", "sudo passwd " + username),
             ("Delete user.", "User deleted.", "sudo deluser " + username)
         ]
         if sudoer_group:
             options.append(("Remove from sudoers", "User removed from sudoers.", "sudo gpasswd -d " + username + " " + sudoer_group))
+        if cached_user:
+            revert_cached = ""
+            for group in [group for group in current_user["groups"] if group not in cached_user["groups"]]:
+                revert_cached += "sudo gpasswd -d %s %s; " % (username, group)
+            add_groups = ",".join([group for group in cached_user["groups"] if group not in current_user["groups"]])
+            if add_groups:
+                revert_cached += "sudo usermod -aG %s %s; " % (add_groups, username)
+            if current_user["shell"] != cached_user["shell"]:
+                revert_cached += "usermod --shell %s %s; " % (cached_user["shell"], username)
+            options.append(("Revert to cached user", "User reverted (password unchanged).", revert_cached))
         [print("%i: %s" % (i, option[0])) for i, option in enumerate(options)]
         return options
 
 
-    def audit_user(self, username, user, user_type="user"):
+    def audit_user(self, username, user, user_type="user", current_user=None, cached_user=None):
         print(user)
         actions_performed = []
-        options = self.audit_options(username, sudoer_group="sudo" if "sudo" in user["groups"] else "wheel")
-        selected_options = input(username + " is a non-cached " + user_type + ". What do you want to do? (comma separated): ").split(",")
+        options = self.audit_options(username, "sudo" if "sudo" in user["groups"] else "wheel", current_user, cached_user)
+        selected_options = input(username + " is a non-cached " + user_type + ". What do you want to do? (type numbers): ")
         selected_options = [int(option) for option in selected_options if option]
         selected_options = selected_options if selected_options else [0]
+        whitelist = True
         for option in selected_options:
             action = options[option][2]
             prompt = getpass(options[option][1]) if "passwd" in action else print(options[option][1])
             actions_performed.append(action)
-            if action == "whitelisted":
-                self.whitelisted[user["username"]] = user
+            if action == "dont_whitelist":
+                whitelist = False
             elif "passwd" in action:
                     os.popen("echo '%s:%s' | sudo chpasswd" % (username, prompt))
             elif action:
                 actions_performed.append(os.popen(action).read())
+        if whitelist:
+            self.whitelisted[user["username"]] = user
         print()
         return actions_performed
         
